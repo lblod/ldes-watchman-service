@@ -24,7 +24,12 @@ app.get('/statistics', async function (req, res) {
     from: req.query.from && dayjs(req.query.from as string).toDate(),
     to: req.query.to && dayjs(req.query.to as string).toDate(),
   } as Filters;
-  const statistics = await getStatistics(streamUri as string, filters);
+  const type = typeof req.query.type == 'string' && req.query.type;
+  const statistics = await getStatistics(
+    streamUri as string,
+    filters,
+    type || undefined
+  );
   res.send(statistics);
 });
 
