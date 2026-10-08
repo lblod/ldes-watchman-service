@@ -1,0 +1,6 @@
+node_modules
+.env
+.eslintcache
+dist
+.vscode
+docker-compose.override.yml
