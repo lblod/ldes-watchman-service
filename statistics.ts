@@ -40,6 +40,44 @@ function buildTimeFilters({ from, to }: Filters) {
   return { fromFilter, toFilter };
 }
 
+const DAY = 24 * 60 * 60 * 1000;
+const MONTH = 30 * DAY;
+
+/**
+ * Size of the queried interval in milliseconds.
+ * A missing bound counts as "now".
+ */
+function getInterval({ from, to }: Filters) {
+  const now = new Date();
+  return (to || now).getTime() - (from || now).getTime();
+}
+
+/**
+ * Merge daily buckets into weekly buckets (weeks starting Monday),
+ * using only ordinal date arithmetic to avoid virtuoso specific functions
+ *
+ */
+function groupDailyBucketsIntoWeeks(
+  buckets: { bucket: string; count: number }[],
+) {
+  const weeks = new Map<string, number>();
+
+  for (const { bucket, count } of buckets) {
+    const [year, month, day] = bucket
+      .split('-')
+      .map((value) => parseInt(value));
+    const date = new Date(Date.UTC(year, month - 1, day));
+    const daysSinceMonday = (date.getUTCDay() + 6) % 7;
+    const weekStart = new Date(date.getTime() - daysSinceMonday * DAY);
+    const weekBucket = weekStart.toISOString().slice(0, 10);
+    weeks.set(weekBucket, (weeks.get(weekBucket) || 0) + count);
+  }
+
+  return [...weeks.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([bucket, count]) => ({ bucket, count }));
+}
+
 /**
  * Total number of instances (LDES members) harvested in the period,
  * optionally counted for one specific instance type only.
@@ -98,16 +136,22 @@ async function getTypeDistribution(streamUri: string, { from, to }: Filters) {
 }
 
 /**
- * Distribution of instances over the period, bucketed by hour.
+ * Distribution of instances over the period.
+ * The bucket size depends on the size of the interval:
+ * hourly for intervals up to 1 day, daily up to 1 month
+ * and weekly for larger intervals.
  * Optionally filtered by one specific instance type.
  */
-async function getTimeDistribution(
+export async function getTimeDistribution(
   streamUri: string,
   filters: Filters,
   type?: string,
 ) {
   const graph = config.streams[streamUri].content;
   const { fromFilter, toFilter } = buildTimeFilters(filters);
+  const interval = getInterval(filters);
+  const bucketSize = interval > DAY ? 10 : 13; // daily or hourly
+  const bucketBind = `BIND(SUBSTR(STR(?time), 1, ${bucketSize}) AS ?bucket)`;
 
   let typeFilter = '';
   if (type) {
@@ -120,17 +164,22 @@ async function getTimeDistribution(
         ?s a ?thing .
         ?s <http://www.w3.org/ns/prov#generatedAtTime> ?time .
       }
-      BIND(SUBSTR(STR(?time), 1, 13) AS ?bucket)
+      ${bucketBind}
       ${fromFilter}
       ${toFilter}
       ${typeFilter}
     } GROUP BY ?bucket ORDER BY ?bucket
   `);
 
-  return results?.results.bindings.map((binding) => ({
+  const dailyBuckets = results?.results.bindings.map((binding) => ({
     bucket: binding.bucket.value,
     count: parseInt(binding.count.value),
   }));
+
+  if (interval > MONTH) {
+    return groupDailyBucketsIntoWeeks(dailyBuckets || []);
+  }
+  return dailyBuckets;
 }
 
 /**
