@@ -2,6 +2,7 @@
 
 import { app, errorHandler } from 'mu';
 import { getStatistics, getTimeDistribution } from './statistics';
+import { getShape } from './shape';
 import dayjs from 'dayjs';
 import { Filters } from './types';
 import { config } from './config/config';
@@ -54,6 +55,20 @@ app.get('/statistics/time-distribution', async function (req, res) {
     type || undefined,
   );
   res.send(timeDistribution);
+});
+
+app.get('/shape', async function (req, res) {
+  const streamUri = req.query.streamUri;
+  if (!streamUri || typeof streamUri != 'string') {
+    res.status(400).send('streamUri is required');
+    return;
+  }
+  if (!config.streams[streamUri as string]) {
+    res.status(404).send('unknown stream uri');
+    return;
+  }
+  const shape = await getShape(streamUri as string);
+  res.send(shape);
 });
 
 app.use(errorHandler);
