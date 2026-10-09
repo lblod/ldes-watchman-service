@@ -1,0 +1,18 @@
+services:
+  ldes-watchman:
+    #build: ./
+    image: semtech/mu-javascript-template:latest
+    restart: no
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./:/app/
+    ports:
+      - '8080:80'
+      - '9228:9229'
+    networks:
+      - app-ldes-monitor_default
+
+networks:
+  app-ldes-monitor_default:
+    external: true
