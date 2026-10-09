@@ -5,8 +5,10 @@ services:
     restart: no
     environment:
       NODE_ENV: development
+      SHAPE_CRON_PATTERN: '*/10 * * * * *'
     volumes:
       - ./:/app/
+      - ../app-ldes-monitor/data/ldes-watchman:/data/
     ports:
       - '8080:80'
       - '9228:9229'

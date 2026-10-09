@@ -6,6 +6,7 @@ import { getShape } from './shape';
 import dayjs from 'dayjs';
 import { Filters } from './types';
 import { config } from './config/config';
+import { getShapeDiff, startShapeCronjob } from './shapes-cron';
 
 app.get('/status', function (_req, res) {
   res.send('ok');
@@ -71,4 +72,24 @@ app.get('/shape', async function (req, res) {
   res.send(shape);
 });
 
+app.get('/shape/diff', async function (req, res) {
+  const streamUri = req.query.streamUri;
+  if (!streamUri || typeof streamUri != 'string') {
+    res.status(400).send('streamUri is required');
+    return;
+  }
+  if (!config.streams[streamUri as string]) {
+    res.status(404).send('unknown stream uri');
+    return;
+  }
+  const diff = await getShapeDiff(streamUri as string);
+  if (!diff) {
+    res.status(404).send('no shape diff available');
+    return;
+  }
+  res.send(diff);
+});
+
 app.use(errorHandler);
+
+startShapeCronjob();
