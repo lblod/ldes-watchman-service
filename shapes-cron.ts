@@ -32,6 +32,9 @@ export async function storeShapes() {
     const path = `${SHAPE_DIR}/${SHAPE_PREFIX}${timestamp.toISOString()}${SHAPE_SUFFIX}`;
     const report: ShapeReport = { timestamp, streamUri, shape };
     await writeFile(path, JSON.stringify(report, null, 2));
+    if (config.streams[streamUri].onShapeChange) {
+      await config.streams[streamUri].onShapeChange(streamUri, path);
+    }
     storedStreams.push(streamUri);
   }
   return storedStreams;
