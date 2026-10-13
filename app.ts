@@ -90,6 +90,10 @@ app.get('/shape/diff', async function (req, res) {
   res.send(diff);
 });
 
+app.get('/streams', async function (_req, res) {
+  res.send(Object.keys(config.streams));
+});
+
 app.use(errorHandler);
 
 startShapeCronjob();
