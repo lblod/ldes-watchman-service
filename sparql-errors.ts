@@ -1,7 +1,7 @@
 import { v4 } from 'uuid';
 import { CronJob } from 'cron';
 import dayjs from 'dayjs';
-import { updateSudo } from '@lblod/mu-auth-sudo';
+import { updateSudo, querySudo } from '@lblod/mu-auth-sudo';
 import { sparqlEscapeDateTime, sparqlEscapeString, sparqlEscapeUri } from 'mu';
 import { config } from './config/config';
 import {
@@ -51,6 +51,63 @@ export async function onSparqlError(
     streamName,
   );
   console.log('sent sparql error metrics');
+}
+
+/**
+ * The most recent ext:Error per error name for a stream in the period.
+ */
+export async function getMostRecentErrors(
+  streamUri: string,
+  from?: Date,
+  to?: Date,
+) {
+  const status = config.streams[streamUri].status;
+
+  let fromFilter = '';
+  if (from) {
+    fromFilter = `FILTER(?time >= ${sparqlEscapeDateTime(from)})`;
+  }
+  let toFilter = '';
+  if (to) {
+    toFilter = `FILTER(?time <= ${sparqlEscapeDateTime(to)})`;
+  }
+
+  const results = await querySudo(`
+    SELECT ?error ?name ?latest ?result WHERE {
+      {
+        SELECT ?name (MAX(?time) AS ?latest) WHERE {
+          GRAPH ${sparqlEscapeUri(status)} {
+            ?e a <http://mu.semte.ch/vocabularies/ext/Error> ;
+              <http://mu.semte.ch/vocabularies/ext/error-name> ?name ;
+              <http://mu.semte.ch/vocabularies/ext/stream> ${sparqlEscapeUri(streamUri)} ;
+              <http://purl.org/dc/terms/created> ?time .
+          }
+          ${fromFilter}
+          ${toFilter}
+        } GROUP BY ?name
+      }
+      GRAPH ${sparqlEscapeUri(status)} {
+        ?error a <http://mu.semte.ch/vocabularies/ext/Error> ;
+          <http://mu.semte.ch/vocabularies/ext/error-name> ?name ;
+          <http://mu.semte.ch/vocabularies/ext/result> ?result ;
+          <http://purl.org/dc/terms/created> ?latest .
+      }
+    } ORDER BY DESC(?latest)
+  `);
+
+  const bindings = results?.results.bindings || [];
+  const errors = new Map<string, unknown>();
+  for (const binding of bindings) {
+    if (errors.has(binding.name.value)) {
+      continue;
+    }
+    errors.set(binding.name.value, {
+      name: binding.name.value,
+      time: binding.latest.value,
+      result: binding.result?.value,
+    });
+  }
+  return Array.from(errors.values());
 }
 
 /**

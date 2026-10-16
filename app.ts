@@ -7,7 +7,10 @@ import dayjs from 'dayjs';
 import { Filters } from './types';
 import { config } from './config/config';
 import { getShapeDiff, startShapeCronjob } from './shapes-cron';
-import { startSparqlVerifyCronjob } from './sparql-errors';
+import {
+  getMostRecentErrors,
+  startSparqlVerifyCronjob,
+} from './sparql-errors';
 
 app.get('/status', function (_req, res) {
   res.send('ok');
@@ -89,6 +92,24 @@ app.get('/shape/diff', async function (req, res) {
     return;
   }
   res.send(diff);
+});
+
+app.get('/sparql-errors', async function (req, res) {
+  const streamUri = req.query.streamUri;
+  if (!streamUri || typeof streamUri != 'string') {
+    res.status(400).send('streamUri is required');
+    return;
+  }
+  if (!config.streams[streamUri as string]) {
+    res.status(404).send('unknown stream uri');
+    return;
+  }
+  const errors = await getMostRecentErrors(
+    streamUri as string,
+    req.query.from && dayjs(req.query.from as string).toDate(),
+    req.query.to && dayjs(req.query.to as string).toDate(),
+  );
+  res.send(errors);
 });
 
 app.get('/streams', async function (_req, res) {
