@@ -50,7 +50,6 @@ export async function onSparqlError(
     new Date().getTime() / 1000,
     streamName,
   );
-  console.log('sent sparql error metrics');
 }
 
 /**
