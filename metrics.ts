@@ -53,6 +53,34 @@ export async function incrementCounter(name: string, stream?: string) {
   await pushInstance('default', key, exposition());
 }
 
+/**
+ * The error metrics are counters where the stream label
+ * identifies the stream the error occurred on.
+ */
+function pushErrorCounter(name: string, stream?: string) {
+  counters[name] = (counters[name] ?? 0) + 1;
+  return pushInstance(
+    'default',
+    stream || 'default',
+    `# TYPE ${name} counter\n${name} ${counters[name]}\n`,
+  );
+}
+
+/**
+ * General counter of sparql verification errors for a stream.
+ */
+export async function incrementErrorCounter(stream?: string) {
+  return pushErrorCounter('ldes_watchman_sparql_errors_total', stream);
+}
+
+/**
+ * Counter specific to one kind of validation error,
+ * with a metric name based on the error name.
+ */
+export async function incrementErrorCounterFor(name: string, stream?: string) {
+  return pushErrorCounter(`ldes_watchman_sparql_error_${name}_total`, stream);
+}
+
 export async function setGauge(name: string, value: number, stream?: string) {
   const key = stream || 'default';
   gauges[name] = value;

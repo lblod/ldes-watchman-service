@@ -7,6 +7,7 @@ import dayjs from 'dayjs';
 import { Filters } from './types';
 import { config } from './config/config';
 import { getShapeDiff, startShapeCronjob } from './shapes-cron';
+import { startSparqlVerifyCronjob } from './sparql-errors';
 
 app.get('/status', function (_req, res) {
   res.send('ok');
@@ -97,3 +98,4 @@ app.get('/streams', async function (_req, res) {
 app.use(errorHandler);
 
 startShapeCronjob();
+startSparqlVerifyCronjob();

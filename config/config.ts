@@ -1,4 +1,7 @@
+import { querySudo } from '@lblod/mu-auth-sudo';
+import { sparqlEscapeUri } from 'mu';
 import { incrementCounter, setGauge } from '../metrics';
+import { onSparqlError } from '../sparql-errors';
 export const config = {
   streams: {
     'https://mandatenbeheer.lokaalbestuur.vlaanderen.be/streams/ldes/public': {
@@ -16,6 +19,30 @@ export const config = {
           config.streams[streamUri].name,
         );
       },
+      sparqlVerify: async (streamUri, content) => {
+        const results = await querySudo(`
+          SELECT (COUNT(?membership) AS ?count) WHERE {
+            {
+              SELECT ?membership WHERE {
+                GRAPH ${sparqlEscapeUri(content)} {
+                  ?membership a <http://www.w3.org/ns/org#Membership> ;
+                    <http://www.w3.org/ns/org#organisation> ?organisation .
+                }
+              } GROUP BY ?membership HAVING (COUNT(DISTINCT ?organisation) > 1)
+            }
+          }
+        `);
+        const count = parseInt(
+          results?.results.bindings[0]?.count?.value || '0',
+        );
+        if (count > 0) {
+          await onSparqlError(
+            streamUri,
+            'membership-multiple-organisations',
+            { count },
+          );
+        }
+      },
     },
   },
 } as Config;
@@ -28,6 +55,7 @@ export type Config = {
       content: string;
       status: string;
       onShapeChange?: (streamUri: string, path: String) => Promise<void>;
+      sparqlVerify?: (streamUri: string, content: string) => Promise<void>;
     }
   >;
 };
