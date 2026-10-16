@@ -20,7 +20,7 @@ function exposition() {
 function pushInstance(instance: string, stream: string, body: string) {
   return new Promise<void>((resolve) => {
     const url = new URL(
-      `/metrics/job/ldes-client/instance/${encodeURIComponent(
+      `/metrics/job/ldes-watchman/instance/${encodeURIComponent(
         instance,
       )}/stream/${encodeURIComponent(stream)}`,
       PUSHGATEWAY_URL,
@@ -59,11 +59,7 @@ export async function incrementCounter(name: string, stream?: string) {
  */
 function pushErrorCounter(name: string, stream?: string) {
   counters[name] = (counters[name] ?? 0) + 1;
-  return pushInstance(
-    'default',
-    stream || 'default',
-    `# TYPE ${name} counter\n${name} ${counters[name]}\n`,
-  );
+  return pushInstance('default', stream || 'default', exposition());
 }
 
 /**
