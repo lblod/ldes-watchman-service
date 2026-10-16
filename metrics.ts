@@ -76,9 +76,15 @@ export async function incrementErrorCounter(stream?: string) {
 /**
  * Counter specific to one kind of validation error,
  * with a metric name based on the error name.
+ * Metric names only allow alphanumerics, colons and underscores,
+ * so any other character in the name is sanitized.
  */
 export async function incrementErrorCounterFor(name: string, stream?: string) {
-  return pushErrorCounter(`ldes_watchman_sparql_error_${name}_total`, stream);
+  const sanitised = name.replace(/[^a-zA-Z0-9_:]/g, '_');
+  return pushErrorCounter(
+    `ldes_watchman_sparql_error_${sanitised}_total`,
+    stream,
+  );
 }
 
 export async function setGauge(name: string, value: number, stream?: string) {

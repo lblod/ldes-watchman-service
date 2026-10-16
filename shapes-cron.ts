@@ -19,25 +19,35 @@ export type ShapeReport = {
  * Store the shape of every configured stream unless it is identical
  * to the most recently stored shape of that stream.
  * Returns the streamUri for every shape that was stored.
+ * Does nothing if a previous run is still in progress.
  */
+let storing = false;
 export async function storeShapes() {
-  const storedStreams = [] as string[];
-  for (const streamUri of Object.keys(config.streams)) {
-    const stored = await getMostRecentShape(streamUri);
-    const shape = await getShape(streamUri);
-    if (JSON.stringify(shape) == JSON.stringify(stored?.shape)) {
-      continue;
-    }
-    const timestamp = dayjs().toDate();
-    const path = `${SHAPE_DIR}/${SHAPE_PREFIX}${timestamp.toISOString()}${SHAPE_SUFFIX}`;
-    const report: ShapeReport = { timestamp, streamUri, shape };
-    await writeFile(path, JSON.stringify(report, null, 2));
-    if (config.streams[streamUri].onShapeChange) {
-      await config.streams[streamUri].onShapeChange(streamUri, path);
-    }
-    storedStreams.push(streamUri);
+  if (storing) {
+    return [];
   }
-  return storedStreams;
+  storing = true;
+  try {
+    const storedStreams = [] as string[];
+    for (const streamUri of Object.keys(config.streams)) {
+      const stored = await getMostRecentShape(streamUri);
+      const shape = await getShape(streamUri);
+      if (JSON.stringify(shape) == JSON.stringify(stored?.shape)) {
+        continue;
+      }
+      const timestamp = dayjs().toDate();
+      const path = `${SHAPE_DIR}/${SHAPE_PREFIX}${timestamp.toISOString()}${SHAPE_SUFFIX}`;
+      const report: ShapeReport = { timestamp, streamUri, shape };
+      await writeFile(path, JSON.stringify(report, null, 2));
+      if (config.streams[streamUri].onShapeChange) {
+        await config.streams[streamUri].onShapeChange(streamUri, path);
+      }
+      storedStreams.push(streamUri);
+    }
+    return storedStreams;
+  } finally {
+    storing = false;
+  }
 }
 
 /**

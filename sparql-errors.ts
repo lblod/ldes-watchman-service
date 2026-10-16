@@ -7,6 +7,7 @@ import { config } from './config/config';
 import {
   incrementErrorCounter,
   incrementErrorCounterFor,
+  setGauge,
 } from './metrics';
 
 const CRON_PATTERN = process.env.SPARQL_VERIFY_CRON_PATTERN || '15 * * * *';
@@ -44,16 +45,33 @@ export async function onSparqlError(
   const streamName = config.streams[streamUri].name;
   await incrementErrorCounter(streamName);
   await incrementErrorCounterFor(name, streamName);
+  await setGauge(
+    'ldes_watchman_last_sparql_error_timestamp_seconds',
+    new Date().getTime() / 1000,
+    streamName,
+  );
+  console.log('sent sparql error metrics');
 }
 
 /**
  * Run the sparqlVerify function of every stream that provides one.
+ * Does nothing if a previous run is still in progress.
  */
+let verifying = false;
+
 export async function verifyStreams() {
-  for (const [streamUri, stream] of Object.entries(config.streams)) {
-    if (stream.sparqlVerify) {
-      await stream.sparqlVerify(streamUri, stream.content);
+  if (verifying) {
+    return;
+  }
+  verifying = true;
+  try {
+    for (const [streamUri, stream] of Object.entries(config.streams)) {
+      if (stream.sparqlVerify) {
+        await stream.sparqlVerify(streamUri, stream.content);
+      }
     }
+  } finally {
+    verifying = false;
   }
 }
 
