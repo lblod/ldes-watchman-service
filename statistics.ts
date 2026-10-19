@@ -2,6 +2,7 @@ import { querySudo } from '@lblod/mu-auth-sudo';
 import { config } from './config/config';
 import { Filters } from './types';
 import { sparqlEscapeDateTime, sparqlEscapeUri } from 'mu';
+import { getTimePred } from './util';
 
 export async function getStatistics(
   streamUri: string,
@@ -20,6 +21,7 @@ export async function getStatistics(
     pagesProcessed: await getPagesProcessed(streamUri, filters),
     errorCount: await getErrorCount(streamUri, filters),
     lastProcessedPage: await getLastProcessedPage(streamUri),
+    lastMemberSeen: await getLastMemberSeen(streamUri, filters),
     averageLoadDuration: await getAverageLoadDuration(streamUri, filters),
     averageProcessingDuration: await getAverageProcessingDuration(
       streamUri,
@@ -95,7 +97,7 @@ async function getInstanceCount(
   const results = await querySudo(`
     SELECT (COUNT(DISTINCT ?s) AS ?count) WHERE {
       GRAPH ${sparqlEscapeUri(graph)} {
-        ?s <http://www.w3.org/ns/prov#generatedAtTime> ?time .
+        ?s ${sparqlEscapeUri(getTimePred(streamUri))} ?time .
         ${typePattern}
       }
       ${fromFilter}
@@ -122,7 +124,7 @@ async function getTypeDistribution(streamUri: string, { from, to }: Filters) {
     SELECT ?thing (COUNT( DISTINCT ?s) AS ?count) WHERE {
       GRAPH ${sparqlEscapeUri(graph)} {
         ?s a ?thing .
-        ?s <http://www.w3.org/ns/prov#generatedAtTime> ?time .
+        ?s ${sparqlEscapeUri(getTimePred(streamUri))} ?time .
       }
       ${fromFilter}
       ${toFilter}
@@ -162,7 +164,7 @@ export async function getTimeDistribution(
     SELECT ?bucket (COUNT(DISTINCT ?s) AS ?count) WHERE {
       GRAPH ${sparqlEscapeUri(graph)} {
         ?s a ?thing .
-        ?s <http://www.w3.org/ns/prov#generatedAtTime> ?time .
+        ?s ${sparqlEscapeUri(getTimePred(streamUri))} ?time .
       }
       ${bucketBind}
       ${fromFilter}
@@ -279,6 +281,27 @@ async function getLastProcessedPage(streamUri: string) {
     page: binding.page.value,
     time: binding.time.value,
   };
+}
+
+/**
+ * The timestamp of the latest entity (LDES member) that was
+ * fetched in the period.
+ */
+async function getLastMemberSeen(streamUri: string, { from, to }: Filters) {
+  const graph = config.streams[streamUri].content;
+  const timePred = getTimePred(streamUri);
+
+  const results = await querySudo(`
+    SELECT (MAX(?time) AS ?last) WHERE {
+      GRAPH ${sparqlEscapeUri(graph)} {
+        ?s ${sparqlEscapeUri(timePred)} ?time .
+      }
+      ${buildTimeFilters({ from, to }).fromFilter}
+      ${buildTimeFilters({ from, to }).toFilter}
+    }
+  `);
+
+  return results?.results.bindings[0]?.last?.value || null;
 }
 
 /**

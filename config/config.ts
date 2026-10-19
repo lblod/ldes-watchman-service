@@ -8,6 +8,8 @@ export const config = {
       name: 'Public Stream',
       content: 'http://mu.semte.ch/graphs/ldes-validation/public/content',
       status: 'http://mu.semte.ch/graphs/ldes-validation/public/status',
+      versionPredicate: 'http://purl.org/dc/terms/isVersionOf',
+      timePredicate: 'http://www.w3.org/ns/prov#generatedAtTime',
       onShapeChange: async (streamUri, _path) => {
         await incrementCounter(
           'ldes_watchman_shape_changes_total',
@@ -36,11 +38,9 @@ export const config = {
           results?.results.bindings[0]?.count?.value || '0',
         );
         if (count > 0) {
-          await onSparqlError(
-            streamUri,
-            'membership-multiple-organisations',
-            { count },
-          );
+          await onSparqlError(streamUri, 'membership-multiple-organisations', {
+            count,
+          });
         }
       },
     },
@@ -54,6 +54,8 @@ export type Config = {
       name: string;
       content: string;
       status: string;
+      timePredicate?: string;
+      versionPredicate?: string;
       onShapeChange?: (streamUri: string, path: String) => Promise<void>;
       sparqlVerify?: (streamUri: string, content: string) => Promise<void>;
     }
